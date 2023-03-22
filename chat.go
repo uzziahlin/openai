@@ -1,14 +1,18 @@
-package chat
+package openai
 
 import (
 	"context"
 )
 
-type Completion interface {
-	Create(ctx context.Context, req *CompletionReq) (*CompletionResp, error)
+const (
+	ChatCreatePath = "/v1/chat/completions"
+)
+
+type Chat interface {
+	Create(ctx context.Context, req *ChatReq) (*ChatReap, error)
 }
 
-type CompletionReq struct {
+type ChatReq struct {
 	Model            string           `json:"model"`
 	Messages         []*Message       `json:"messages"`
 	Temperature      float64          `json:"temperature"`
@@ -28,7 +32,7 @@ type Message struct {
 	Content string `json:"content"`
 }
 
-type CompletionResp struct {
+type ChatReap struct {
 	Id      string    `json:"id"`
 	Object  string    `json:"object"`
 	Created int64     `json:"created"`
@@ -46,4 +50,12 @@ type Usage struct {
 	PromptTokens     int64 `json:"prompt_tokens"`
 	CompletionTokens int64 `json:"completion_tokens"`
 	TotalTokens      int64 `json:"total_tokens"`
+}
+
+type chat struct {
+	client *Client
+}
+
+func (c chat) Create(ctx context.Context, req *ChatReq) (*ChatReap, error) {
+
 }
