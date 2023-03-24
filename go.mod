@@ -1,4 +1,4 @@
-module openai
+module github.com/uzziahlin/openai
 
 go 1.18
 
