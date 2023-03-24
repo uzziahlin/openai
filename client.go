@@ -185,7 +185,7 @@ func (c *Client) NewRequest(method string, relPath string, headers map[string]st
 
 	if headers != nil {
 		for k, v := range headers {
-			req.Header.Set(k, v)
+			req.SetHeader(k, v)
 		}
 	}
 
