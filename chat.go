@@ -8,8 +8,8 @@ const (
 	ChatCreatePath = "/v1/chat/completions"
 )
 
-type Chat interface {
-	Create(ctx context.Context, req *ChatReq) (*ChatReap, error)
+type ChatService interface {
+	Create(ctx context.Context, req *ChatReq) (*ChatResp, error)
 }
 
 type ChatReq struct {
@@ -32,7 +32,7 @@ type Message struct {
 	Content string `json:"content"`
 }
 
-type ChatReap struct {
+type ChatResp struct {
 	Id      string    `json:"id"`
 	Object  string    `json:"object"`
 	Created int64     `json:"created"`
@@ -52,10 +52,12 @@ type Usage struct {
 	TotalTokens      int64 `json:"total_tokens"`
 }
 
-type chat struct {
+type chatServiceOp struct {
 	client *Client
 }
 
-func (c chat) Create(ctx context.Context, req *ChatReq) (*ChatReap, error) {
-
+func (c chatServiceOp) Create(ctx context.Context, req *ChatReq) (*ChatResp, error) {
+	var resp ChatResp
+	err := c.client.Post(ctx, ChatCreatePath, req, &resp)
+	return &resp, err
 }
