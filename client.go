@@ -31,7 +31,6 @@ func NewClient(app App, opts ...Option) (*Client, error) {
 	c := &Client{
 		baseURL: u,
 		apiKey:  app.ApiKey,
-		client:  http.NewDefaultClient(),
 		logger: &LeveledLogger{
 			Level: LevelDebug,
 		},
@@ -45,7 +44,19 @@ func NewClient(app App, opts ...Option) (*Client, error) {
 		opt(c)
 	}
 
+	if c.proxyUrl != nil {
+		c.client = http.NewDefaultClient(http.WithProxy(c.proxyUrl))
+	} else {
+		c.client = http.NewDefaultClient()
+	}
+
 	return c, nil
+}
+
+func WithProxy(proxyUrl *url.URL) Option {
+	return func(c *Client) {
+		c.proxyUrl = proxyUrl
+	}
 }
 
 func WithRetries(retries int) Option {
@@ -54,11 +65,18 @@ func WithRetries(retries int) Option {
 	}
 }
 
+func WithLogger(logger Logger) Option {
+	return func(c *Client) {
+		c.logger = logger
+	}
+}
+
 type Client struct {
-	client  http.Client
-	baseURL *url.URL
-	apiKey  string
-	retries int
+	client   http.Client
+	baseURL  *url.URL
+	proxyUrl *url.URL
+	apiKey   string
+	retries  int
 
 	logger Logger
 	Chat   ChatService
