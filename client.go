@@ -35,7 +35,10 @@ func NewClient(app App, opts ...Option) (*Client, error) {
 		logger: &LeveledLogger{
 			Level: LevelDebug,
 		},
-		Chat: &chatServiceOp{},
+	}
+
+	c.Chat = &chatServiceOp{
+		client: c,
 	}
 
 	for _, opt := range opts {
