@@ -13,18 +13,18 @@ type ChatService interface {
 }
 
 type ChatReq struct {
-	Model            string           `json:"model"`
-	Messages         []*Message       `json:"messages"`
-	Temperature      float64          `json:"temperature"`
-	TopP             float64          `json:"top_p"`
-	N                int64            `json:"n"`
-	Stream           bool             `json:"stream"`
-	Stop             []string         `json:"stop"`
-	MaxTokens        int64            `json:"max_tokens"`
-	PresencePenalty  float64          `json:"presence_penalty"`
-	FrequencyPenalty float64          `json:"frequency_penalty"`
-	LogitBias        map[string]int64 `json:"logit_bias"`
-	User             string           `json:"user"`
+	Model            string           `json:"model,omitempty"`
+	Messages         []*Message       `json:"messages,omitempty"`
+	Temperature      float64          `json:"temperature,omitempty"`
+	TopP             float64          `json:"top_p,omitempty"`
+	N                int64            `json:"n,omitempty"`
+	Stream           bool             `json:"stream,omitempty"`
+	Stop             []string         `json:"stop,omitempty"`
+	MaxTokens        int64            `json:"max_tokens,omitempty"`
+	PresencePenalty  float64          `json:"presence_penalty,omitempty"`
+	FrequencyPenalty float64          `json:"frequency_penalty,omitempty"`
+	LogitBias        map[string]int64 `json:"logit_bias,omitempty"`
+	User             string           `json:"user,omitempty"`
 }
 
 type Message struct {
