@@ -20,10 +20,18 @@ type App struct {
 
 type Option func(*Client)
 
-func NewClient(app App, opts ...Option) *Client {
+func NewClient(app App, opts ...Option) (*Client, error) {
+
+	u, err := url.Parse(app.ApiUrl)
+
+	if err != nil {
+		return nil, err
+	}
 
 	c := &Client{
-		client: http.NewDefaultClient(),
+		baseURL: u,
+		apiKey:  app.ApiKey,
+		client:  http.NewDefaultClient(),
 		logger: &LeveledLogger{
 			Level: LevelDebug,
 		},
@@ -34,7 +42,7 @@ func NewClient(app App, opts ...Option) *Client {
 		opt(c)
 	}
 
-	return c
+	return c, nil
 }
 
 func WithRetries(retries int) Option {
