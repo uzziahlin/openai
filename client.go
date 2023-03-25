@@ -9,7 +9,10 @@ import (
 	"github.com/uzziahlin/transport/http"
 	"io"
 	"io/ioutil"
+	"mime/multipart"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -226,4 +229,114 @@ func (c *Client) logBody(body *io.ReadCloser, format string) {
 		c.logger.Debugf(format, string(b))
 	}
 	*body = ioutil.NopCloser(bytes.NewBuffer(b))
+}
+
+func (c *Client) Upload(ctx context.Context, relPath string, files []*FormFile, resp any, fields ...*FormField) error {
+	builder := MultipartRequestBuilder{
+		baseUrl: c.baseURL,
+		relPath: relPath,
+		Files:   files,
+		Fields:  fields,
+	}
+
+	request, err := builder.Build()
+	if err != nil {
+		return err
+	}
+
+	if _, err = c.doAndGetHeaders(ctx, request, resp, true); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type MultipartRequestBuilder struct {
+	baseUrl *url.URL
+	relPath string
+	Files   []*FormFile
+	Fields  []*FormField
+}
+
+func (m MultipartRequestBuilder) Build() (*http.Request, error) {
+	rel, err := url.Parse(m.relPath)
+	if err != nil {
+		return nil, err
+	}
+
+	u := m.baseUrl.ResolveReference(rel)
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	if files := m.Files; files != nil && len(files) > 0 {
+		for _, file := range files {
+			f, err := os.Open(file.filename)
+			if err != nil {
+				return nil, err
+			}
+			defer f.Close()
+
+			formFile, err := writer.CreateFormFile(file.fieldName, filepath.Base(file.filename))
+			if err != nil {
+				return nil, err
+			}
+
+			_, err = io.Copy(formFile, f)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if fields := m.Fields; fields != nil && len(fields) > 0 {
+		for _, field := range fields {
+			formField, err := writer.CreateFormField(field.fieldName)
+			if err != nil {
+				return nil, err
+			}
+			// todo 是否需要讲value定义为io.Reader？
+			_, err = formField.Write([]byte(field.fieldValue))
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	err = writer.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	req := &http.Request{
+		Method: "POST",
+		Url:    u.String(),
+		Body:   ioutil.NopCloser(body),
+	}
+
+	return req, nil
+}
+
+type FormFile struct {
+	fieldName string
+	filename  string
+}
+
+func NewFormFile(fieldName, filename string) *FormFile {
+	return &FormFile{
+		fieldName: fieldName,
+		filename:  filename,
+	}
+}
+
+type FormField struct {
+	fieldName  string
+	fieldValue string
+}
+
+func NewFormField(fieldName, fieldValue string) *FormField {
+	return &FormField{
+		fieldName:  fieldName,
+		fieldValue: fieldValue,
+	}
 }
