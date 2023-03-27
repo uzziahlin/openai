@@ -39,7 +39,7 @@ func NewClient(app App, opts ...Option) (*Client, error) {
 		},
 	}
 
-	c.Models = &ModelsServiceOp{
+	c.Models = &ModelServiceOp{
 		client: c,
 	}
 
@@ -47,7 +47,7 @@ func NewClient(app App, opts ...Option) (*Client, error) {
 		client: c,
 	}
 
-	c.Images = &ImagesServiceOp{
+	c.Images = &ImageServiceOp{
 		client: c,
 	}
 
@@ -91,9 +91,9 @@ type Client struct {
 
 	logger Logger
 
-	Models ModelsService
+	Models ModelService
 	Chat   ChatService
-	Images ImagesService
+	Images ImageService
 }
 
 func (c *Client) Post(ctx context.Context, relPath string, body, resp any) error {
