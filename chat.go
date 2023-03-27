@@ -9,11 +9,11 @@ const (
 )
 
 type ChatService interface {
-	Create(ctx context.Context, req *ChatReq) (*ChatResp, error)
+	Create(ctx context.Context, req *ChatCreateRequest) (*ChatCreateResponse, error)
 }
 
-type ChatReq struct {
-	Model            string           `json:"model,omitempty"`
+type ChatCreateRequest struct {
+	Model            string           `json:"model"`
 	Messages         []*Message       `json:"messages,omitempty"`
 	Temperature      float64          `json:"temperature,omitempty"`
 	TopP             float64          `json:"top_p,omitempty"`
@@ -32,32 +32,26 @@ type Message struct {
 	Content string `json:"content"`
 }
 
-type ChatResp struct {
-	Id      string    `json:"id"`
-	Object  string    `json:"object"`
-	Created int64     `json:"created"`
-	Choices []*Choice `json:"choices"`
-	Usage   Usage     `json:"usage"`
+type ChatCreateResponse struct {
+	Id      string            `json:"id"`
+	Object  string            `json:"object"`
+	Created int64             `json:"created"`
+	Choices []*ChatCompletion `json:"choices"`
+	Usage   Usage             `json:"usage"`
 }
 
-type Choice struct {
+type ChatCompletion struct {
 	Index        int64    `json:"index"`
 	Message      *Message `json:"message"`
 	FinishReason string   `json:"finish_reason"`
 }
 
-type Usage struct {
-	PromptTokens     int64 `json:"prompt_tokens"`
-	CompletionTokens int64 `json:"completion_tokens"`
-	TotalTokens      int64 `json:"total_tokens"`
-}
-
-type chatServiceOp struct {
+type ChatServiceOp struct {
 	client *Client
 }
 
-func (c chatServiceOp) Create(ctx context.Context, req *ChatReq) (*ChatResp, error) {
-	var resp ChatResp
+func (c ChatServiceOp) Create(ctx context.Context, req *ChatCreateRequest) (*ChatCreateResponse, error) {
+	var resp ChatCreateResponse
 	err := c.client.Post(ctx, ChatCreatePath, req, &resp)
 	return &resp, err
 }
