@@ -39,7 +39,15 @@ func NewClient(app App, opts ...Option) (*Client, error) {
 		},
 	}
 
-	c.Chat = &chatServiceOp{
+	c.Models = &ModelsServiceOp{
+		client: c,
+	}
+
+	c.Chat = &ChatServiceOp{
+		client: c,
+	}
+
+	c.Images = &ImagesServiceOp{
 		client: c,
 	}
 
@@ -82,7 +90,10 @@ type Client struct {
 	retries  int
 
 	logger Logger
+
+	Models ModelsService
 	Chat   ChatService
+	Images ImagesService
 }
 
 func (c *Client) Post(ctx context.Context, relPath string, body, resp any) error {
