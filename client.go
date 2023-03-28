@@ -117,7 +117,7 @@ func (c *Client) Stream(ctx context.Context, relPath string, body any) (EventSou
 		return nil, err
 	}
 
-	resp, err := c.do(ctx, req, false)
+	resp, err := c.do(ctx, req, false, true)
 
 	if err != nil {
 		return nil, err
@@ -207,7 +207,7 @@ func (c *Client) Do(ctx context.Context, method, relPath string, headers map[str
 		return err
 	}
 
-	resp, err := c.do(ctx, req, false)
+	resp, err := c.do(ctx, req, false, false)
 
 	if err != nil {
 		return err
@@ -222,7 +222,7 @@ func (c *Client) Do(ctx context.Context, method, relPath string, headers map[str
 	return err
 }
 
-func (c *Client) do(ctx context.Context, r *http.Request, skipBody bool) (*http.Response, error) {
+func (c *Client) do(ctx context.Context, r *http.Request, skipReqBody, skipRespBody bool) (*http.Response, error) {
 
 	var (
 		resp     *http.Response
@@ -230,7 +230,7 @@ func (c *Client) do(ctx context.Context, r *http.Request, skipBody bool) (*http.
 		attempts int
 	)
 
-	c.logRequest(r, skipBody)
+	c.logRequest(r, skipReqBody)
 
 	for {
 		attempts++
@@ -255,7 +255,7 @@ func (c *Client) do(ctx context.Context, r *http.Request, skipBody bool) (*http.
 		}
 	}
 
-	c.logResponse(resp, skipBody)
+	c.logResponse(resp, skipRespBody)
 
 	return resp, nil
 }
@@ -371,7 +371,7 @@ func (c *Client) Upload(ctx context.Context, relPath string, files []*FormFile, 
 		return err
 	}
 
-	resp, err := c.do(ctx, request, true)
+	resp, err := c.do(ctx, request, true, false)
 
 	if err != nil {
 		return err
