@@ -96,6 +96,11 @@ type Client struct {
 	Images ImageService
 }
 
+func (c *Client) Stream(ctx context.Context, relPath string, body, resp any) (<-chan any, error) {
+
+	return nil, nil
+}
+
 func (c *Client) Post(ctx context.Context, relPath string, body, resp any) error {
 	return c.Do(ctx, "POST", relPath, nil, nil, body, resp)
 }
