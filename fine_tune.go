@@ -27,19 +27,19 @@ type FineTuneCreateRequest struct {
 }
 
 type FineTune struct {
-	Id              string      `json:"id"`
-	Object          string      `json:"object"`
-	Model           string      `json:"model"`
-	CreateAt        int64       `json:"create_at"`
-	Events          []*Event    `json:"events"`
-	FineTunedModel  string      `json:"fine_tuned_model"`
-	Hyperparams     Hyperparams `json:"hyperparams"`
-	OrganizationId  string      `json:"organization_id"`
-	ResultFiles     []*File     `json:"result_files"`
-	Status          string      `json:"status"`
-	ValidationFiles []*File     `json:"validation_files"`
-	TrainingFiles   []*File     `json:"training_files"`
-	UpdatedAt       int64       `json:"updated_at"`
+	Id              string           `json:"id"`
+	Object          string           `json:"object"`
+	Model           string           `json:"model"`
+	CreateAt        int64            `json:"create_at"`
+	Events          []*FineTuneEvent `json:"events"`
+	FineTunedModel  string           `json:"fine_tuned_model"`
+	Hyperparams     Hyperparams      `json:"hyperparams"`
+	OrganizationId  string           `json:"organization_id"`
+	ResultFiles     []*File          `json:"result_files"`
+	Status          string           `json:"status"`
+	ValidationFiles []*File          `json:"validation_files"`
+	TrainingFiles   []*File          `json:"training_files"`
+	UpdatedAt       int64            `json:"updated_at"`
 }
 
 type Hyperparams struct {
@@ -49,7 +49,7 @@ type Hyperparams struct {
 	PromptLossWeight       float64 `json:"prompt_loss_weight"`
 }
 
-type Event struct {
+type FineTuneEvent struct {
 	Object   string `json:"object"`
 	CreateAt int64  `json:"create_at"`
 	Level    string `json:"level"`
@@ -62,8 +62,8 @@ type FineTuneListResponse struct {
 }
 
 type EventListResponse struct {
-	Object string   `json:"object"`
-	Data   []*Event `json:"data"`
+	Object string           `json:"object"`
+	Data   []*FineTuneEvent `json:"data"`
 }
 
 type ModelDeleteResponse struct {
