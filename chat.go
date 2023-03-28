@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"encoding/json"
 )
 
 const (
@@ -9,7 +10,7 @@ const (
 )
 
 type ChatService interface {
-	Create(ctx context.Context, req *ChatCreateRequest) (*ChatCreateResponse, error)
+	Create(ctx context.Context, req *ChatCreateRequest) (chan *ChatCreateResponse, error)
 }
 
 type ChatCreateRequest struct {
@@ -42,16 +43,61 @@ type ChatCreateResponse struct {
 
 type ChatCompletion struct {
 	Index        int64    `json:"index"`
+	Delta        *Delta   `json:"delta"`
 	Message      *Message `json:"message"`
 	FinishReason string   `json:"finish_reason"`
+}
+
+type Delta struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
 
 type ChatServiceOp struct {
 	client *Client
 }
 
-func (c ChatServiceOp) Create(ctx context.Context, req *ChatCreateRequest) (*ChatCreateResponse, error) {
-	var resp ChatCreateResponse
-	err := c.client.Post(ctx, ChatCreatePath, req, &resp)
-	return &resp, err
+func (c ChatServiceOp) Create(ctx context.Context, req *ChatCreateRequest) (chan *ChatCreateResponse, error) {
+	res := make(chan *ChatCreateResponse)
+
+	if !req.Stream {
+		var resp ChatCreateResponse
+		err := c.client.Post(ctx, ChatCreatePath, req, &resp)
+		if err != nil {
+			return nil, err
+		}
+		go func() {
+			select {
+			case <-ctx.Done():
+			case res <- &resp:
+			}
+			close(res)
+		}()
+		return res, nil
+	}
+
+	es, err := c.client.Stream(ctx, ChatCreatePath, req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		for e := range es {
+			var resp ChatCreateResponse
+			err := json.Unmarshal([]byte(e.Data), &resp)
+			if err != nil {
+				c.client.logError(err, "%s")
+				continue
+			}
+			select {
+			case <-ctx.Done():
+				break
+			case res <- &resp:
+			}
+		}
+		close(res)
+	}()
+
+	return res, nil
 }

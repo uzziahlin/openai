@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -14,6 +15,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"time"
 )
 
 type App struct {
@@ -23,12 +26,12 @@ type App struct {
 
 type Option func(*Client)
 
-func NewClient(app App, opts ...Option) (*Client, error) {
+func NewClient(app App, opts ...Option) *Client {
 
 	u, err := url.Parse(app.ApiUrl)
 
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	c := &Client{
@@ -61,12 +64,17 @@ func NewClient(app App, opts ...Option) (*Client, error) {
 		c.client = http.NewDefaultClient()
 	}
 
-	return c, nil
+	return c
 }
 
-func WithProxy(proxyUrl *url.URL) Option {
+func WithProxy(proxyUrl string) Option {
 	return func(c *Client) {
-		c.proxyUrl = proxyUrl
+		u, err := url.Parse(proxyUrl)
+		if err != nil {
+			c.logError(err, "failed to parse proxy url: %s")
+			return
+		}
+		c.proxyUrl = u
 	}
 }
 
@@ -96,9 +104,83 @@ type Client struct {
 	Images ImageService
 }
 
-func (c *Client) Stream(ctx context.Context, relPath string, body, resp any) (<-chan any, error) {
+func (c *Client) Stream(ctx context.Context, relPath string, body any) (EventSource, error) {
 
-	return nil, nil
+	headers := make(map[string]string, 3)
+	headers["Content-Type"] = "application/json"
+	headers["Accept"] = "text/event-stream"
+	headers["Authorization"] = "Bearer " + c.apiKey
+
+	req, err := c.NewRequest("POST", relPath, headers, nil, body)
+
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.do(ctx, req, false)
+
+	if err != nil {
+		return nil, err
+	}
+
+	es := NewEventSource(ctx, resp.Body, "[DONE]")
+
+	return es, nil
+}
+
+func NewEventSource(ctx context.Context, r io.ReadCloser, doneStr string) EventSource {
+	es := make(EventSource)
+
+	go func() {
+		defer func() {
+			_ = r.Close()
+			close(es)
+		}()
+		scanner := bufio.NewScanner(r)
+		var event Event
+		for scanner.Scan() {
+			line := scanner.Text()
+			if line == "" {
+				select {
+				case <-ctx.Done():
+					return
+				case es <- event:
+					event = Event{}
+				}
+			} else if strings.HasPrefix(line, "event:") {
+				event.Event = strings.TrimSpace(line[len("event:"):])
+			} else if strings.HasPrefix(line, "data:") {
+				event.Data = strings.TrimSpace(line[len("data:"):])
+				if event.Data == doneStr {
+					return
+				}
+			} else if strings.HasPrefix(line, "id:") {
+				event.Id = strings.TrimSpace(line[len("id:"):])
+			} else if strings.HasPrefix(line, "retry:") {
+				duration, err := time.ParseDuration(strings.TrimSpace(line[len("retry:"):]))
+				if err != nil {
+					event.Err = err
+				} else {
+					event.Retry = duration
+				}
+			}
+			if ctx.Err() != nil {
+				return
+			}
+		}
+	}()
+
+	return es
+}
+
+type EventSource chan Event
+
+type Event struct {
+	Id    string
+	Event string
+	Data  string
+	Retry time.Duration
+	Err   error
 }
 
 func (c *Client) Post(ctx context.Context, relPath string, body, resp any) error {
@@ -109,7 +191,7 @@ func (c *Client) Get(ctx context.Context, relPath string, params, resp any) erro
 	return c.Do(ctx, "GET", relPath, nil, params, nil, resp)
 }
 
-func (c *Client) Do(ctx context.Context, method, relPath string, headers map[string]string, params, body, resp any) error {
+func (c *Client) Do(ctx context.Context, method, relPath string, headers map[string]string, params, body, v any) error {
 
 	if headers == nil {
 		headers = make(map[string]string, 3)
@@ -125,12 +207,22 @@ func (c *Client) Do(ctx context.Context, method, relPath string, headers map[str
 		return err
 	}
 
-	_, err = c.doAndGetHeaders(ctx, req, resp, false)
+	resp, err := c.do(ctx, req, false)
+
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if v != nil {
+		err = json.NewDecoder(resp.Body).Decode(&v)
+	}
 
 	return err
 }
 
-func (c *Client) doAndGetHeaders(ctx context.Context, r *http.Request, v any, skipBody bool) (http.Header, error) {
+func (c *Client) do(ctx context.Context, r *http.Request, skipBody bool) (*http.Response, error) {
 
 	var (
 		resp     *http.Response
@@ -164,16 +256,8 @@ func (c *Client) doAndGetHeaders(ctx context.Context, r *http.Request, v any, sk
 	}
 
 	c.logResponse(resp, skipBody)
-	defer resp.Body.Close()
 
-	if v != nil {
-		err = json.NewDecoder(resp.Body).Decode(&v)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return resp.Header, nil
+	return resp, nil
 }
 
 func checkErr(resp *http.Response) error {
@@ -265,7 +349,16 @@ func (c *Client) logBody(body *io.ReadCloser, format string) {
 	*body = ioutil.NopCloser(bytes.NewBuffer(b))
 }
 
-func (c *Client) Upload(ctx context.Context, relPath string, files []*FormFile, resp any, fields ...*FormField) error {
+func (c *Client) logError(err error, format string) {
+	if err == nil {
+		return
+	}
+
+	c.logger.Errorf(format, err.Error())
+
+}
+
+func (c *Client) Upload(ctx context.Context, relPath string, files []*FormFile, v any, fields ...*FormField) error {
 	builder := MultipartRequestBuilder{
 		baseUrl: c.baseURL,
 		relPath: relPath,
@@ -278,8 +371,16 @@ func (c *Client) Upload(ctx context.Context, relPath string, files []*FormFile, 
 		return err
 	}
 
-	if _, err = c.doAndGetHeaders(ctx, request, resp, true); err != nil {
+	resp, err := c.do(ctx, request, true)
+
+	if err != nil {
 		return err
+	}
+
+	defer resp.Body.Close()
+
+	if v != nil {
+		err = json.NewDecoder(resp.Body).Decode(&v)
 	}
 
 	return nil
