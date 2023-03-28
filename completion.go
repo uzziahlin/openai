@@ -40,6 +40,7 @@ type CompletionCreateResponse struct {
 
 type Completion struct {
 	Text         string `json:"text"`
+	Delta        *Delta `json:"delta"`
 	Index        int64  `json:"index"`
 	Logprobs     int64  `json:"logprobs"`
 	FinishReason string `json:"finish_reason"`
