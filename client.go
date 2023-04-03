@@ -6,8 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/go-logr/logr"
+	"github.com/go-logr/zapr"
 	"github.com/google/go-querystring/query"
 	"github.com/uzziahlin/transport/http"
+	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
@@ -34,12 +38,16 @@ func NewClient(app App, opts ...Option) *Client {
 		panic(err)
 	}
 
+	// 默认使用zap，环境默认为开发环境，如果有特殊要求，使用者可以自行注入日志实现
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		return nil, err
+	}
+
 	c := &Client{
 		baseURL: u,
 		apiKey:  app.ApiKey,
-		logger: &LeveledLogger{
-			Level: LevelDebug,
-		},
+		logger:  zapr.NewLogger(logger),
 	}
 
 	c.Models = &ModelServiceOp{
@@ -84,7 +92,7 @@ func WithRetries(retries int) Option {
 	}
 }
 
-func WithLogger(logger Logger) Option {
+func WithLogger(logger logr.Logger) Option {
 	return func(c *Client) {
 		c.logger = logger
 	}
@@ -97,7 +105,7 @@ type Client struct {
 	apiKey   string
 	retries  int
 
-	logger Logger
+	logger logr.Logger
 
 	Models ModelService
 	Chat   ChatService
@@ -320,7 +328,8 @@ func (c *Client) logRequest(req *http.Request, skipBody bool) {
 		return
 	}
 	if req.Url != "" {
-		c.logger.Debugf("%s: %s", req.Method, req.Url)
+		// debug level
+		c.logger.V(1).Info(fmt.Sprintf("%s: %s", req.Method, req.Url))
 	}
 	if !skipBody {
 		c.logBody(&req.Body, "SENT: %s")
@@ -331,7 +340,8 @@ func (c *Client) logResponse(res *http.Response, skipBody bool) {
 	if res == nil {
 		return
 	}
-	c.logger.Debugf("RECV %d: %s", res.StatusCode, res.StatusCode)
+	// debug level
+	c.logger.V(1).Info(fmt.Sprintf("RECV %d:", res.StatusCode))
 	if !skipBody {
 		c.logBody(&res.Body, "RESP: %s")
 	}
@@ -344,7 +354,8 @@ func (c *Client) logBody(body *io.ReadCloser, format string) {
 	}
 	b, _ := ioutil.ReadAll(*body)
 	if len(b) > 0 {
-		c.logger.Debugf(format, string(b))
+		// debug level
+		c.logger.V(1).Info(fmt.Sprintf(format, string(b)))
 	}
 	*body = ioutil.NopCloser(bytes.NewBuffer(b))
 }
