@@ -87,7 +87,7 @@ func (c ChatServiceOp) Create(ctx context.Context, req *ChatCreateRequest) (chan
 			var resp ChatCreateResponse
 			err := json.Unmarshal([]byte(e.Data), &resp)
 			if err != nil {
-				c.client.logError(err, "%s")
+				c.client.logger.Error(err, "failed to unmarshal chat response")
 				continue
 			}
 			select {
