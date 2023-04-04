@@ -39,10 +39,7 @@ func NewClient(app App, opts ...Option) *Client {
 	}
 
 	// 默认使用zap，环境默认为开发环境，如果有特殊要求，使用者可以自行注入日志实现
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		return nil, err
-	}
+	logger, _ := zap.NewDevelopment()
 
 	c := &Client{
 		baseURL: u,
@@ -79,7 +76,7 @@ func WithProxy(proxyUrl string) Option {
 	return func(c *Client) {
 		u, err := url.Parse(proxyUrl)
 		if err != nil {
-			c.logError(err, "failed to parse proxy url: %s")
+			c.logger.Error(err, "failed to parse proxy url")
 			return
 		}
 		c.proxyUrl = u
@@ -358,15 +355,6 @@ func (c *Client) logBody(body *io.ReadCloser, format string) {
 		c.logger.V(1).Info(fmt.Sprintf(format, string(b)))
 	}
 	*body = ioutil.NopCloser(bytes.NewBuffer(b))
-}
-
-func (c *Client) logError(err error, format string) {
-	if err == nil {
-		return
-	}
-
-	c.logger.Errorf(format, err.Error())
-
 }
 
 func (c *Client) Upload(ctx context.Context, relPath string, files []*FormFile, v any, fields ...*FormField) error {
