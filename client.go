@@ -10,11 +10,11 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/google/go-querystring/query"
-	"github.com/uzziahlin/transport/http"
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -30,7 +30,7 @@ type App struct {
 
 type Option func(*Client)
 
-func NewClient(app App, opts ...Option) *Client {
+func New(app App, opts ...Option) *Client {
 
 	u, err := url.Parse(app.ApiUrl)
 
@@ -42,6 +42,7 @@ func NewClient(app App, opts ...Option) *Client {
 	logger, _ := zap.NewDevelopment()
 
 	c := &Client{
+		client:  &http.Client{},
 		baseURL: u,
 		apiKey:  app.ApiKey,
 		logger:  zapr.NewLogger(logger),
@@ -64,9 +65,9 @@ func NewClient(app App, opts ...Option) *Client {
 	}
 
 	if c.proxyUrl != nil {
-		c.client = http.NewDefaultClient(http.WithProxy(c.proxyUrl))
-	} else {
-		c.client = http.NewDefaultClient()
+		c.client.Transport = &http.Transport{
+			Proxy: http.ProxyURL(c.proxyUrl),
+		}
 	}
 
 	return c
@@ -96,7 +97,7 @@ func WithLogger(logger logr.Logger) Option {
 }
 
 type Client struct {
-	client   http.Client
+	client   *http.Client
 	baseURL  *url.URL
 	proxyUrl *url.URL
 	apiKey   string
@@ -109,6 +110,11 @@ type Client struct {
 	Images ImageService
 }
 
+func (c *Client) Close() error {
+	c.client.CloseIdleConnections()
+	return nil
+}
+
 func (c *Client) Stream(ctx context.Context, relPath string, body any) (EventSource, error) {
 
 	headers := make(map[string]string, 3)
@@ -116,7 +122,7 @@ func (c *Client) Stream(ctx context.Context, relPath string, body any) (EventSou
 	headers["Accept"] = "text/event-stream"
 	headers["Authorization"] = "Bearer " + c.apiKey
 
-	req, err := c.NewRequest("POST", relPath, headers, nil, body)
+	req, err := c.NewRequest(ctx, "POST", relPath, headers, nil, body)
 
 	if err != nil {
 		return nil, err
@@ -133,6 +139,7 @@ func (c *Client) Stream(ctx context.Context, relPath string, body any) (EventSou
 	return es, nil
 }
 
+// NewEventSource 处理SSE
 func NewEventSource(ctx context.Context, r io.ReadCloser, doneStr string) EventSource {
 	es := make(EventSource)
 
@@ -206,7 +213,7 @@ func (c *Client) Do(ctx context.Context, method, relPath string, headers map[str
 	headers["Accept"] = "application/json"
 	headers["Authorization"] = "Bearer " + c.apiKey
 
-	req, err := c.NewRequest(method, relPath, headers, params, body)
+	req, err := c.NewRequest(ctx, method, relPath, headers, params, body)
 
 	if err != nil {
 		return err
@@ -240,7 +247,7 @@ func (c *Client) do(ctx context.Context, r *http.Request, skipReqBody, skipRespB
 	for {
 		attempts++
 
-		resp, err = c.client.Send(ctx, r)
+		resp, err = c.client.Do(r)
 
 		// 由客户端引起的错误，不需要重试
 		if err != nil {
@@ -273,7 +280,7 @@ func checkErr(resp *http.Response) error {
 	return errors.New(strconv.Itoa(resp.StatusCode))
 }
 
-func (c *Client) NewRequest(method string, relPath string, headers map[string]string, params any, body any) (*http.Request, error) {
+func (c *Client) NewRequest(ctx context.Context, method string, relPath string, headers map[string]string, params any, body any) (*http.Request, error) {
 	rel, err := url.Parse(relPath)
 	if err != nil {
 		return nil, err
@@ -303,15 +310,15 @@ func (c *Client) NewRequest(method string, relPath string, headers map[string]st
 		}
 	}
 
-	req := &http.Request{
-		Method: method,
-		Url:    u.String(),
-		Body:   ioutil.NopCloser(bytes.NewBuffer(data)),
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), bytes.NewBuffer(data))
+
+	if err != nil {
+		return nil, err
 	}
 
 	if headers != nil {
 		for k, v := range headers {
-			req.SetHeader(k, v)
+			req.Header.Set(k, v)
 		}
 	}
 
@@ -324,9 +331,9 @@ func (c *Client) logRequest(req *http.Request, skipBody bool) {
 	if req == nil {
 		return
 	}
-	if req.Url != "" {
+	if req.URL != nil {
 		// debug level
-		c.logger.V(1).Info(fmt.Sprintf("%s: %s", req.Method, req.Url))
+		c.logger.V(1).Info(fmt.Sprintf("%s: %s", req.Method, req.URL.String()))
 	}
 	if !skipBody {
 		c.logBody(&req.Body, "SENT: %s")
@@ -365,7 +372,7 @@ func (c *Client) Upload(ctx context.Context, relPath string, files []*FormFile, 
 		Fields:  fields,
 	}
 
-	request, err := builder.Build()
+	request, err := builder.Build(ctx)
 	if err != nil {
 		return err
 	}
@@ -392,7 +399,7 @@ type MultipartRequestBuilder struct {
 	Fields  []*FormField
 }
 
-func (m MultipartRequestBuilder) Build() (*http.Request, error) {
+func (m MultipartRequestBuilder) Build(ctx context.Context) (*http.Request, error) {
 	rel, err := url.Parse(m.relPath)
 	if err != nil {
 		return nil, err
@@ -409,14 +416,21 @@ func (m MultipartRequestBuilder) Build() (*http.Request, error) {
 			if err != nil {
 				return nil, err
 			}
-			defer f.Close()
 
 			formFile, err := writer.CreateFormFile(file.fieldName, filepath.Base(file.filename))
 			if err != nil {
+				_ = f.Close()
 				return nil, err
 			}
 
 			_, err = io.Copy(formFile, f)
+			if err != nil {
+				_ = f.Close()
+				return nil, err
+			}
+
+			err = f.Close()
+
 			if err != nil {
 				return nil, err
 			}
@@ -429,7 +443,7 @@ func (m MultipartRequestBuilder) Build() (*http.Request, error) {
 			if err != nil {
 				return nil, err
 			}
-			// todo 是否需要讲value定义为io.Reader？
+			// todo 是否需要将value定义为io.Reader？
 			_, err = formField.Write([]byte(field.fieldValue))
 			if err != nil {
 				return nil, err
@@ -442,13 +456,7 @@ func (m MultipartRequestBuilder) Build() (*http.Request, error) {
 		return nil, err
 	}
 
-	req := &http.Request{
-		Method: "POST",
-		Url:    u.String(),
-		Body:   ioutil.NopCloser(body),
-	}
-
-	return req, nil
+	return http.NewRequestWithContext(ctx, "POST", u.String(), body)
 }
 
 type FormFile struct {
