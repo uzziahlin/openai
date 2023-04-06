@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	ChatCreatePath = "/v1/chat/completions"
+	ChatCreatePath = "/chat/completions"
 )
 
 type ChatService interface {

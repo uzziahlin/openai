@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -47,6 +48,7 @@ func New(app App, opts ...Option) (*Client, error) {
 	c := &Client{
 		client:  &http.Client{},
 		baseURL: u,
+		version: "v1",
 		apiKey:  app.ApiKey,
 		logger:  zapr.NewLogger(logger),
 	}
@@ -110,6 +112,13 @@ func WithLogger(logger logr.Logger) Option {
 	}
 }
 
+// WithVersion 设置默认版本，如果不设置，默认为v1
+func WithVersion(version string) Option {
+	return func(c *Client) {
+		c.version = version
+	}
+}
+
 type Proxy struct {
 	Url      string
 	Username string
@@ -119,6 +128,7 @@ type Proxy struct {
 type Client struct {
 	client  *http.Client
 	baseURL *url.URL
+	version string
 	proxy   *Proxy
 	apiKey  string
 	retries int
@@ -128,6 +138,13 @@ type Client struct {
 	Models ModelService
 	Chat   ChatService
 	Images ImageService
+}
+
+// V 设置版本,返回一个新的Client实例，不会修改原有实例
+func (c *Client) V(version string) Client {
+	newClient := *c
+	newClient.version = version
+	return newClient
 }
 
 func (c *Client) Close() error {
@@ -301,7 +318,7 @@ func checkErr(resp *http.Response) error {
 }
 
 func (c *Client) NewRequest(ctx context.Context, method string, relPath string, headers map[string]string, params any, body any) (*http.Request, error) {
-	rel, err := url.Parse(relPath)
+	rel, err := url.Parse(path.Join(c.version, relPath))
 	if err != nil {
 		return nil, err
 	}
