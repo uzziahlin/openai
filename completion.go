@@ -3,7 +3,7 @@ package openai
 import "context"
 
 const (
-	CompletionsCreatePath = "/v1/completions"
+	CompletionsCreatePath = "/completions"
 )
 
 type CompletionService interface {
