@@ -30,16 +30,19 @@ type App struct {
 
 type Option func(*Client)
 
-func New(app App, opts ...Option) *Client {
+func New(app App, opts ...Option) (*Client, error) {
 
 	u, err := url.Parse(app.ApiUrl)
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	// 默认使用zap，环境默认为开发环境，如果有特殊要求，使用者可以自行注入日志实现
-	logger, _ := zap.NewDevelopment()
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		return nil, err
+	}
 
 	c := &Client{
 		client:  &http.Client{},
@@ -64,23 +67,34 @@ func New(app App, opts ...Option) *Client {
 		opt(c)
 	}
 
-	if c.proxyUrl != nil {
+	if c.proxy != nil && c.proxy.Url != "" {
+		proxyUrl, err := url.Parse(c.proxy.Url)
+		if err != nil {
+			c.logger.Error(err, "parse proxy url error")
+			return nil, err
+		}
+
+		if c.proxy.Username != "" {
+			var userInfo *url.Userinfo
+			if c.proxy.Password != "" {
+				userInfo = url.UserPassword(c.proxy.Username, c.proxy.Password)
+			} else {
+				userInfo = url.User(c.proxy.Username)
+			}
+			proxyUrl.User = userInfo
+		}
+
 		c.client.Transport = &http.Transport{
-			Proxy: http.ProxyURL(c.proxyUrl),
+			Proxy: http.ProxyURL(proxyUrl),
 		}
 	}
 
-	return c
+	return c, nil
 }
 
-func WithProxy(proxyUrl string) Option {
+func WithProxy(proxy *Proxy) Option {
 	return func(c *Client) {
-		u, err := url.Parse(proxyUrl)
-		if err != nil {
-			c.logger.Error(err, "failed to parse proxy url")
-			return
-		}
-		c.proxyUrl = u
+		c.proxy = proxy
 	}
 }
 
@@ -96,12 +110,18 @@ func WithLogger(logger logr.Logger) Option {
 	}
 }
 
+type Proxy struct {
+	Url      string
+	Username string
+	Password string
+}
+
 type Client struct {
-	client   *http.Client
-	baseURL  *url.URL
-	proxyUrl *url.URL
-	apiKey   string
-	retries  int
+	client  *http.Client
+	baseURL *url.URL
+	proxy   *Proxy
+	apiKey  string
+	retries int
 
 	logger logr.Logger
 
