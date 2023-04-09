@@ -192,3 +192,47 @@ func mockOutputWithStream(ctx context.Context, w http.ResponseWriter, data []byt
 	_, _ = w.Write([]byte("data:"))
 	_, _ = w.Write([]byte("[DONE]"))
 }
+
+func TestSend(t *testing.T) {
+	client, err := New(App{
+		ApiUrl: "https://api.openai.com",
+		ApiKey: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+	}, WithProxy(&Proxy{
+		Url:      "xxx.xxx.xxx.xxx:xxxx",
+		Username: "xxxxxx",
+		Password: "xxxxxx",
+	}))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := ChatCreateRequest{
+		Model: "gpt-3.5-turbo",
+		Messages: []*Message{
+			{Role: "user", Content: "Where was it played?"},
+		},
+		Stream: true,
+	}
+
+	res, err := client.Chat.Create(ctx, &req)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case r, ok := <-res:
+			if !ok {
+				return
+			}
+			fmt.Println(r)
+		}
+	}
+}
