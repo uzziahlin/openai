@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -77,18 +78,36 @@ func New(app App, opts ...Option) (*Client, error) {
 		}
 
 		if c.proxy.Username != "" {
-			var userInfo *url.Userinfo
+			var user *url.Userinfo
 			if c.proxy.Password != "" {
-				userInfo = url.UserPassword(c.proxy.Username, c.proxy.Password)
+				user = url.UserPassword(c.proxy.Username, c.proxy.Password)
 			} else {
-				userInfo = url.User(c.proxy.Username)
+				user = url.User(c.proxy.Username)
 			}
-			proxyUrl.User = userInfo
+			proxyUrl.User = user
 		}
 
-		c.client.Transport = &http.Transport{
+		transport := &http.Transport{
 			Proxy: http.ProxyURL(proxyUrl),
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
 		}
+
+		if c.proxy.TlsCfg != nil {
+			transport.TLSClientConfig = c.proxy.TlsCfg
+		}
+
+		// 手动设置代理认证信息
+		/*if c.proxy.Username != "" {
+			proxyAuth := fmt.Sprintf("%s:%s", c.proxy.Username, c.proxy.Password)
+			basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(proxyAuth))
+			transport.ProxyConnectHeader = http.Header{
+				"Proxy-Authorization": []string{basicAuth},
+			}
+		}*/
+
+		c.client.Transport = transport
 	}
 
 	return c, nil
@@ -123,6 +142,7 @@ type Proxy struct {
 	Url      string
 	Username string
 	Password string
+	TlsCfg   *tls.Config
 }
 
 type Client struct {
