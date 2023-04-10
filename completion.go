@@ -1,13 +1,16 @@
 package openai
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+)
 
 const (
 	CompletionsCreatePath = "/completions"
 )
 
 type CompletionService interface {
-	Create(ctx context.Context, req *CompletionCreateRequest) (*CompletionCreateResponse, error)
+	Create(ctx context.Context, req *CompletionCreateRequest) (chan *CompletionCreateResponse, error)
 }
 
 type CompletionCreateRequest struct {
@@ -56,8 +59,60 @@ type CompletionServiceOp struct {
 	client *Client
 }
 
-func (c CompletionServiceOp) Create(ctx context.Context, req *CompletionCreateRequest) (*CompletionCreateResponse, error) {
-	var resp CompletionCreateResponse
-	err := c.client.Post(ctx, CompletionsCreatePath, req, &resp)
-	return &resp, err
+func (c CompletionServiceOp) Create(ctx context.Context, req *CompletionCreateRequest) (chan *CompletionCreateResponse, error) {
+	res := make(chan *CompletionCreateResponse)
+
+	// 如果不是 stream 模式，返回一个 channel，并将结果通过 channel 返回
+	if !req.Stream {
+		var resp CompletionCreateResponse
+		err := c.client.Post(ctx, CompletionsCreatePath, req, &resp)
+		if err != nil {
+			return nil, err
+		}
+		go func() {
+			select {
+			case <-ctx.Done():
+			case res <- &resp:
+			}
+			close(res)
+		}()
+		return res, nil
+	}
+
+	// 如果是 stream 模式，返回一个 channel，这个 channel 会在 ctx.Done() 或者 stream 关闭后关闭
+	es, err := c.client.Stream(ctx, CompletionsCreatePath, req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		defer close(res)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case e, ok := <-es:
+				if !ok {
+					return
+				}
+				var resp CompletionCreateResponse
+				err := json.Unmarshal([]byte(e.Data), &resp)
+				if err != nil {
+					c.client.logger.Error(err, "failed to unmarshal chat response")
+					continue
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case res <- &resp:
+				}
+			}
+
+		}
+
+	}()
+
+	return res, nil
 }

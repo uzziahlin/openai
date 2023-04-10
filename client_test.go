@@ -47,6 +47,7 @@ func loadTestdata(filename string) []byte {
 	return data
 }
 
+// loadMockData loads mock data from a file.
 func loadMockData(filename string, out any) {
 	testdata := loadTestdata(filename)
 	if err := json.Unmarshal(testdata, &out); err != nil {

@@ -58,6 +58,10 @@ func New(app App, opts ...Option) (*Client, error) {
 		client: c,
 	}
 
+	c.Completions = &CompletionServiceOp{
+		client: c,
+	}
+
 	c.Chat = &ChatServiceOp{
 		client: c,
 	}
@@ -155,9 +159,10 @@ type Client struct {
 
 	logger logr.Logger
 
-	Models ModelService
-	Chat   ChatService
-	Images ImageService
+	Models      ModelService
+	Completions CompletionService
+	Chat        ChatService
+	Images      ImageService
 }
 
 // V 设置版本,返回一个新的Client实例，不会修改原有实例
