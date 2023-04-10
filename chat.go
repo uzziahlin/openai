@@ -88,20 +88,30 @@ func (c ChatServiceOp) Create(ctx context.Context, req *ChatCreateRequest) (chan
 	}
 
 	go func() {
-		for e := range es {
-			var resp ChatCreateResponse
-			err := json.Unmarshal([]byte(e.Data), &resp)
-			if err != nil {
-				c.client.logger.Error(err, "failed to unmarshal chat response")
-				continue
-			}
+		defer close(res)
+
+		for {
 			select {
 			case <-ctx.Done():
-				break
-			case res <- &resp:
+				return
+			case e, ok := <-es:
+				if !ok {
+					return
+				}
+				var resp ChatCreateResponse
+				err := json.Unmarshal([]byte(e.Data), &resp)
+				if err != nil {
+					c.client.logger.Error(err, "failed to unmarshal chat response")
+					continue
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case res <- &resp:
+				}
 			}
 		}
-		close(res)
+
 	}()
 
 	return res, nil

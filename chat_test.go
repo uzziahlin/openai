@@ -178,7 +178,6 @@ func mockOutputWithStream(ctx context.Context, w http.ResponseWriter, data []byt
 	for i := 0; i < count; i++ {
 		select {
 		case <-ctx.Done():
-			fmt.Println("context done")
 			return
 		default:
 			_, err := fmt.Fprintf(w, "data:%s\n\n", content)
