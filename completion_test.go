@@ -33,6 +33,7 @@ func TestCompletionServiceOp_Create(t *testing.T) {
 
 		mockOutputWithStream(r.Context(), w, mockData, 5)
 	})
+	defer server.Close()
 
 	client := newMockClient(server.URL)
 
