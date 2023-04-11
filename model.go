@@ -1,6 +1,14 @@
 package openai
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
+
+const (
+	ModelListPath     = "/models"
+	ModelRetrievePath = "/models/%s"
+)
 
 type ModelService interface {
 	List(ctx context.Context) (*ModelResponse, error)
@@ -8,7 +16,8 @@ type ModelService interface {
 }
 
 type ModelResponse struct {
-	Data []*Model `json:"data"`
+	Data   []*Model `json:"data"`
+	Object string   `json:"object"`
 }
 
 type Model struct {
@@ -23,11 +32,13 @@ type ModelServiceOp struct {
 }
 
 func (m ModelServiceOp) List(ctx context.Context) (*ModelResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp ModelResponse
+	err := m.client.Get(ctx, ModelListPath, nil, &resp)
+	return &resp, err
 }
 
 func (m ModelServiceOp) Retrieve(ctx context.Context, model string) (*Model, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp Model
+	err := m.client.Get(ctx, fmt.Sprintf(ModelRetrievePath, model), nil, &resp)
+	return &resp, err
 }

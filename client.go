@@ -47,11 +47,13 @@ func New(app App, opts ...Option) (*Client, error) {
 	}
 
 	c := &Client{
-		client:  &http.Client{},
-		baseURL: u,
-		version: "v1",
-		apiKey:  app.ApiKey,
-		logger:  zapr.NewLogger(logger),
+		client:      &http.Client{},
+		baseURL:     u,
+		version:     "v1",
+		apiKey:      app.ApiKey,
+		retries:     3,
+		formBuilder: NewMultiPartFormBuilder,
+		logger:      zapr.NewLogger(logger),
 	}
 
 	c.Models = &ModelServiceOp{
@@ -63,6 +65,10 @@ func New(app App, opts ...Option) (*Client, error) {
 	}
 
 	c.Chat = &ChatServiceOp{
+		client: c,
+	}
+
+	c.Edits = &EditServiceOp{
 		client: c,
 	}
 
@@ -129,6 +135,12 @@ func WithRetries(retries int) Option {
 	}
 }
 
+func WithFormBuilder(builder func(w io.Writer) FormBuilder) Option {
+	return func(c *Client) {
+		c.formBuilder = builder
+	}
+}
+
 func WithLogger(logger logr.Logger) Option {
 	return func(c *Client) {
 		c.logger = logger
@@ -157,11 +169,14 @@ type Client struct {
 	apiKey  string
 	retries int
 
+	formBuilder func(w io.Writer) FormBuilder
+
 	logger logr.Logger
 
 	Models      ModelService
 	Completions CompletionService
 	Chat        ChatService
+	Edits       EditService
 	Images      ImageService
 }
 
@@ -427,19 +442,51 @@ func (c *Client) logBody(body *io.ReadCloser, format string) {
 }
 
 func (c *Client) Upload(ctx context.Context, relPath string, files []*FormFile, v any, fields ...*FormField) error {
-	builder := MultipartRequestBuilder{
-		baseUrl: c.baseURL,
-		relPath: relPath,
-		Files:   files,
-		Fields:  fields,
-	}
 
-	request, err := builder.Build(ctx)
+	rel, err := url.Parse(relPath)
 	if err != nil {
 		return err
 	}
 
-	resp, err := c.do(ctx, request, true, false)
+	u := c.baseURL.ResolveReference(rel)
+
+	form := &bytes.Buffer{}
+
+	builder := c.formBuilder(form)
+
+	if files != nil && len(files) > 0 {
+		for _, file := range files {
+			err := builder.CreateFormFile(file.fieldName, file.filename)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	if fields != nil && len(fields) > 0 {
+		for _, field := range fields {
+			err := builder.CreateFormField(field.fieldName, field.fieldValue)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	err = builder.Close()
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", u.String(), form)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", builder.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.do(ctx, req, true, false)
 
 	if err != nil {
 		return err
@@ -454,7 +501,59 @@ func (c *Client) Upload(ctx context.Context, relPath string, files []*FormFile, 
 	return nil
 }
 
-type MultipartRequestBuilder struct {
+type FormBuilder interface {
+	CreateFormFile(name string, filename string) error
+	CreateFormField(name string, value string) error
+	FormDataContentType() string
+	io.Closer
+}
+
+func NewMultiPartFormBuilder(w io.Writer) FormBuilder {
+	writer := multipart.NewWriter(w)
+	return &multipartFormBuilder{
+		w: writer,
+	}
+}
+
+type multipartFormBuilder struct {
+	w *multipart.Writer
+}
+
+func (m multipartFormBuilder) CreateFormFile(name string, filename string) error {
+	f, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	formFile, err := m.w.CreateFormFile(name, filepath.Base(filename))
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(formFile, f)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m multipartFormBuilder) CreateFormField(name string, value string) error {
+	return m.w.WriteField(name, value)
+}
+
+func (m multipartFormBuilder) FormDataContentType() string {
+	return m.w.FormDataContentType()
+}
+
+func (m multipartFormBuilder) Close() error {
+	return m.w.Close()
+}
+
+// MultipartRequestBuilder is a builder for multipart/form-data requests.
+// 这里抽象没有做好，后期考虑重构
+/*type MultipartRequestBuilder struct {
 	baseUrl *url.URL
 	relPath string
 	Files   []*FormFile
@@ -518,8 +617,13 @@ func (m MultipartRequestBuilder) Build(ctx context.Context) (*http.Request, erro
 		return nil, err
 	}
 
-	return http.NewRequestWithContext(ctx, "POST", u.String(), body)
-}
+	req, err := http.NewRequestWithContext(ctx, "POST", u.String(), body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	return req, nil
+}*/
 
 type FormFile struct {
 	fieldName string
