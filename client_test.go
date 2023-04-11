@@ -3,20 +3,23 @@ package openai
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"testing"
+	"time"
 )
 
 // newMockClient returns a mock client for testing purposes.
-func newMockClient(baseUrl string) *Client {
+func newMockClient(baseUrl string, opts ...Option) *Client {
 	app := App{
 		ApiKey: os.Getenv("OPENAI_API_KEY"),
 		ApiUrl: baseUrl,
 	}
 
-	client, err := New(app)
+	client, err := New(app, opts...)
 	if err != nil {
 		panic(fmt.Sprintf("Cannot create client: %v", err))
 	}
@@ -27,6 +30,19 @@ func newMockClient(baseUrl string) *Client {
 // newMockServer returns a mock server for testing purposes.
 func newMockServer(handler http.HandlerFunc) *httptest.Server {
 	return httptest.NewServer(handler)
+}
+
+func newMockHandler(t *testing.T, method string, filename string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, method, r.Method)
+
+		mockData := loadTestdata(filename)
+
+		// 模拟网络延迟
+		time.Sleep(3 * time.Second)
+		_, _ = w.Write(mockData)
+		return
+	}
 }
 
 // loadTestdata loads testdata from a file.

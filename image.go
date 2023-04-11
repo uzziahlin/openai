@@ -1,6 +1,15 @@
 package openai
 
-import "context"
+import (
+	"context"
+	"strconv"
+)
+
+const (
+	ImageCreatePath    = "/images/generations"
+	ImageEditPath      = "/images/edits"
+	ImageVariationPath = "/images/variations"
+)
 
 type ImageService interface {
 	Create(ctx context.Context, req *ImageCreateRequest) (*ImageResponse, error)
@@ -23,15 +32,117 @@ type Image struct {
 }
 
 type ImageEditRequest struct {
-	Image  string `json:"image"`
+	// Image is the path to the image file
+	Image string `json:"image"`
+	// Mask is the path to the mask file
 	Mask   string `json:"mask,omitempty"`
 	Prompt string `json:"prompt"`
 	ImageAttributes
 }
 
+func (i *ImageEditRequest) getFormFiles() []*FormFile {
+	res := []*FormFile{
+		{
+			fieldName: "image",
+			filename:  i.Image,
+		},
+	}
+
+	if i.Mask != "" {
+		res = append(res, &FormFile{
+			fieldName: "mask",
+			filename:  i.Mask,
+		})
+	}
+
+	return res
+}
+
+func (i *ImageEditRequest) getFormFields() []*FormField {
+	res := []*FormField{
+		{
+			fieldName:  "prompt",
+			fieldValue: i.Prompt,
+		},
+	}
+
+	if i.N != 0 {
+		res = append(res, &FormField{
+			fieldName:  "n",
+			fieldValue: strconv.Itoa(i.N),
+		})
+	}
+
+	if i.Size != "" {
+		res = append(res, &FormField{
+			fieldName:  "size",
+			fieldValue: i.Size,
+		})
+	}
+
+	if i.ResponseFormat != "" {
+		res = append(res, &FormField{
+			fieldName:  "response_format",
+			fieldValue: i.ResponseFormat,
+		})
+	}
+
+	if i.User != "" {
+		res = append(res, &FormField{
+			fieldName:  "user",
+			fieldValue: i.User,
+		})
+	}
+
+	return res
+}
+
 type ImageVariationRequest struct {
 	Image string `json:"image"`
 	ImageAttributes
+}
+
+func (i *ImageVariationRequest) getFormFiles() []*FormFile {
+	return []*FormFile{
+		{
+			fieldName: "image",
+			filename:  i.Image,
+		},
+	}
+}
+
+func (i *ImageVariationRequest) getFormFields() []*FormField {
+	var res []*FormField
+
+	if i.N != 0 {
+		res = append(res, &FormField{
+			fieldName:  "n",
+			fieldValue: strconv.Itoa(i.N),
+		})
+	}
+
+	if i.Size != "" {
+		res = append(res, &FormField{
+			fieldName:  "size",
+			fieldValue: i.Size,
+		})
+	}
+
+	if i.ResponseFormat != "" {
+		res = append(res, &FormField{
+			fieldName:  "response_format",
+			fieldValue: i.ResponseFormat,
+		})
+	}
+
+	if i.User != "" {
+		res = append(res, &FormField{
+			fieldName:  "user",
+			fieldValue: i.User,
+		})
+	}
+
+	return res
 }
 
 type ImageAttributes struct {
@@ -46,16 +157,19 @@ type ImageServiceOp struct {
 }
 
 func (i ImageServiceOp) Create(ctx context.Context, req *ImageCreateRequest) (*ImageResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp ImageResponse
+	err := i.client.Post(ctx, ImageCreatePath, req, &resp)
+	return &resp, err
 }
 
 func (i ImageServiceOp) Edit(ctx context.Context, req *ImageEditRequest) (*ImageResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp ImageResponse
+	err := i.client.Upload(ctx, ImageEditPath, req.getFormFiles(), &resp, req.getFormFields()...)
+	return &resp, err
 }
 
 func (i ImageServiceOp) Variation(ctx context.Context, req *ImageVariationRequest) (*ImageResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp ImageResponse
+	err := i.client.Upload(ctx, ImageVariationPath, req.getFormFiles(), &resp, req.getFormFields()...)
+	return &resp, err
 }

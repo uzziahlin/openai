@@ -2,6 +2,10 @@ package openai
 
 import "context"
 
+const (
+	EditCreatePath = "/edits"
+)
+
 type EditService interface {
 	Create(ctx context.Context, request *EditCreateRequest) (*EditCreateResponse, error)
 }
@@ -31,7 +35,8 @@ type EditServiceOp struct {
 	client *Client
 }
 
-func (e EditServiceOp) Create(ctx context.Context, request *EditCreateRequest) (*EditCreateResponse, error) {
-	//TODO implement me
-	panic("implement me")
+func (e EditServiceOp) Create(ctx context.Context, req *EditCreateRequest) (*EditCreateResponse, error) {
+	var res EditCreateResponse
+	err := e.client.Post(ctx, EditCreatePath, req, &res)
+	return &res, err
 }
