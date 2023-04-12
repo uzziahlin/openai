@@ -81,7 +81,7 @@ func (c ChatServiceOp) Create(ctx context.Context, req *ChatCreateRequest) (chan
 	}
 
 	// 如果是 stream 模式，返回一个 channel，这个 channel 会在 ctx.Done() 或者 stream 关闭后关闭
-	es, err := c.client.Stream(ctx, ChatCreatePath, req)
+	es, err := c.client.PostByStream(ctx, ChatCreatePath, req)
 
 	if err != nil {
 		return nil, err

@@ -2,6 +2,10 @@ package openai
 
 import "context"
 
+const (
+	ModerationCreatePath = "/moderations"
+)
+
 type ModerationService interface {
 	Create(ctx context.Context, req *ModerationCreateRequest) (*ModerationCreateResponse, error)
 }
@@ -48,6 +52,7 @@ type ModerationServiceOp struct {
 }
 
 func (m ModerationServiceOp) Create(ctx context.Context, req *ModerationCreateRequest) (*ModerationCreateResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp ModerationCreateResponse
+	err := m.client.Post(ctx, ModerationCreatePath, req, &resp)
+	return &resp, err
 }

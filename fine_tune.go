@@ -1,17 +1,31 @@
 package openai
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+)
+
+const (
+	FineTuneCreatePath   = "/fine-tunes"
+	FineTuneListPath     = "/fine-tunes"
+	FineTuneRetrievePath = "/fine-tunes/%s"
+	FineTuneCancelPath   = "/fine-tunes/%s/cancel"
+	EventsListPath       = "/fine-tunes/%s/events"
+	ModelDeletePath      = "/models/%s"
+)
 
 type FineTuneService interface {
 	Create(ctx context.Context, req *FineTuneCreateRequest) (*FineTune, error)
 	List(ctx context.Context) (*FineTuneListResponse, error)
 	Retrieve(ctx context.Context, id string) (*FineTune, error)
 	Cancel(ctx context.Context, id string) (*FineTune, error)
-	ListEvents(ctx context.Context, id string, stream ...bool) (*EventListResponse, error)
+	ListEvents(ctx context.Context, id string, stream ...bool) (chan *EventListResponse, error)
 	DeleteModel(ctx context.Context, model string) (*ModelDeleteResponse, error)
 }
 
 type FineTuneCreateRequest struct {
+	// TrainingFile is the ID to the training file
 	TrainingFile                  string    `json:"training_file"`
 	ValidationFile                string    `json:"validation_file,omitempty"`
 	Model                         string    `json:"model,omitempty"`
@@ -76,32 +90,99 @@ type FineTuneServiceOp struct {
 	client *Client
 }
 
+// Create Creates a job that fine-tunes a specified model from a given dataset.
+//Response includes details of the enqueued job including job status and the name of the fine-tuned models once complete.
 func (f FineTuneServiceOp) Create(ctx context.Context, req *FineTuneCreateRequest) (*FineTune, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp FineTune
+	err := f.client.Post(ctx, FineTuneCreatePath, req, &resp)
+	return &resp, err
 }
 
+// List Returns a list of all fine-tuning jobs.
 func (f FineTuneServiceOp) List(ctx context.Context) (*FineTuneListResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp FineTuneListResponse
+	err := f.client.Get(ctx, FineTuneListPath, nil, &resp)
+	return &resp, err
 }
 
+// Retrieve Returns a fine-tuning job by ID.
 func (f FineTuneServiceOp) Retrieve(ctx context.Context, id string) (*FineTune, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp FineTune
+	err := f.client.Get(ctx, fmt.Sprintf(FineTuneRetrievePath, id), nil, &resp)
+	return &resp, err
 }
 
+// Cancel Cancels a fine-tuning job.
 func (f FineTuneServiceOp) Cancel(ctx context.Context, id string) (*FineTune, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp FineTune
+	err := f.client.Post(ctx, fmt.Sprintf(FineTuneCancelPath, id), nil, &resp)
+	return &resp, err
 }
 
-func (f FineTuneServiceOp) ListEvents(ctx context.Context, id string, stream ...bool) (*EventListResponse, error) {
-	//TODO implement me
-	panic("implement me")
+// ListEvents Returns a list of events for a fine-tuning job.
+// If stream=true, the response will be a stream of events as they are generated.
+// by default, the response will be a list of all events generated so far.
+func (f FineTuneServiceOp) ListEvents(ctx context.Context, id string, stream ...bool) (chan *EventListResponse, error) {
+	type Stream struct {
+		Stream bool `url:"stream"`
+	}
+
+	var s Stream
+	if len(stream) > 0 {
+		s.Stream = stream[0]
+	}
+
+	if !s.Stream {
+		var resp EventListResponse
+		err := f.client.Get(ctx, fmt.Sprintf(EventsListPath, id), s, &resp)
+		if err != nil {
+			return nil, err
+		}
+		ch := make(chan *EventListResponse, 1)
+		ch <- &resp
+		close(ch)
+		return ch, nil
+	}
+
+	ch := make(chan *EventListResponse)
+
+	es, err := f.client.GetByStream(ctx, fmt.Sprintf(EventsListPath, id), s)
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		defer close(ch)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case e, ok := <-es:
+				if !ok {
+					return
+				}
+				var resp EventListResponse
+				err := json.Unmarshal([]byte(e.Data), &resp)
+				if err != nil {
+					f.client.logger.Error(err, "failed to unmarshal chat response")
+					continue
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case ch <- &resp:
+				}
+			}
+		}
+	}()
+
+	return ch, nil
 }
 
+// DeleteModel Deletes a fine-tuned model.
 func (f FineTuneServiceOp) DeleteModel(ctx context.Context, model string) (*ModelDeleteResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp ModelDeleteResponse
+	err := f.client.Delete(ctx, fmt.Sprintf(ModelDeletePath, model), nil, &resp)
+	return &resp, err
 }

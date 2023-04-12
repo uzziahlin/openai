@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-func TestEditServiceOp_Create(t *testing.T) {
-	server := newMockServer(newMockHandler(t, "POST", "edit_create_response.json"))
+func TestModerationServiceOp_Create(t *testing.T) {
+	server := newMockServer(newMockHandler(t, "POST", "moderation_create_response.json"))
 	client := newMockClient(server.URL)
 	defer server.Close()
 
@@ -19,44 +19,40 @@ func TestEditServiceOp_Create(t *testing.T) {
 		}
 	}()
 
-	mockReq := &EditCreateRequest{
-		Model:       "text-davinci-edit-001",
-		Input:       "What day of the wek is it?",
-		Instruction: "Fix the spelling mistakes",
+	mockReq := &ModerationCreateRequest{
+		Input: "test input",
+		Model: "text-moderation-stable",
 	}
 
 	testCase := []struct {
 		name    string
 		ctx     context.Context
-		req     *EditCreateRequest
-		wantRes *EditCreateResponse
+		wantRes *ModerationCreateResponse
 		wantErr error
 	}{
 		{
-			name: "test edit create success",
+			name: "test moderation create success",
 			ctx:  context.TODO(),
-			req:  mockReq,
-			wantRes: func() *EditCreateResponse {
-				var wantRes EditCreateResponse
-				loadMockData("edit_create_response.json", &wantRes)
+			wantRes: func() *ModerationCreateResponse {
+				var wantRes ModerationCreateResponse
+				loadMockData("moderation_create_response.json", &wantRes)
 				return &wantRes
 			}(),
 		},
 		{
-			name: "test edit create timeout",
+			name: "test moderation create timeout",
 			ctx: func() context.Context {
 				ctx, cancel := context.WithTimeout(context.Background(), 2)
 				cancels = append(cancels, cancel)
 				return ctx
 			}(),
-			req:     mockReq,
 			wantErr: context.DeadlineExceeded,
 		},
 	}
 
 	for _, tc := range testCase {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := client.Edits.Create(tc.ctx, tc.req)
+			res, err := client.Moderations.Create(tc.ctx, mockReq)
 			b := assert.ErrorIs(t, err, tc.wantErr)
 			if !b {
 				t.Fatalf("wantErr: %v, gotErr: %v", tc.wantErr, err)

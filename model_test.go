@@ -8,7 +8,7 @@ import (
 )
 
 func TestModelServiceOp_List(t *testing.T) {
-	server := newMockServer(newMockHandler(t, "GET", "model_list.json"))
+	server := newMockServer(newMockHandler(t, "GET", "model_list_response.json"))
 	client := newMockClient(server.URL)
 	defer server.Close()
 
@@ -30,7 +30,7 @@ func TestModelServiceOp_List(t *testing.T) {
 			ctx:  context.TODO(),
 			wantRes: func() *ModelResponse {
 				var wantRes ModelResponse
-				loadMockData("model_list.json", &wantRes)
+				loadMockData("model_list_response.json", &wantRes)
 				return &wantRes
 			}(),
 		},
@@ -61,7 +61,7 @@ func TestModelServiceOp_List(t *testing.T) {
 }
 
 func TestModelServiceOp_Retrieve(t *testing.T) {
-	server := newMockServer(newMockHandler(t, "GET", "model_retrieve.json"))
+	server := newMockServer(newMockHandler(t, "GET", "model_retrieve_response.json"))
 	client := newMockClient(server.URL)
 	defer server.Close()
 
@@ -83,7 +83,7 @@ func TestModelServiceOp_Retrieve(t *testing.T) {
 			ctx:  context.TODO(),
 			wantRes: func() *Model {
 				var wantRes Model
-				loadMockData("model_retrieve.json", &wantRes)
+				loadMockData("model_retrieve_response.json", &wantRes)
 				return &wantRes
 			}(),
 		},
