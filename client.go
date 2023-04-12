@@ -14,12 +14,9 @@ import (
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
-	"mime/multipart"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -73,6 +70,26 @@ func New(app App, opts ...Option) (*Client, error) {
 	}
 
 	c.Images = &ImageServiceOp{
+		client: c,
+	}
+
+	c.Embeddings = &EmbeddingServiceOp{
+		client: c,
+	}
+
+	c.Audio = &AudioServiceOp{
+		client: c,
+	}
+
+	c.Files = &FileServiceOp{
+		client: c,
+	}
+
+	c.FineTunes = &FineTuneServiceOp{
+		client: c,
+	}
+
+	c.Moderations = &ModerationServiceOp{
 		client: c,
 	}
 
@@ -178,6 +195,11 @@ type Client struct {
 	Chat        ChatService
 	Edits       EditService
 	Images      ImageService
+	Embeddings  EmbeddingService
+	Audio       AudioService
+	Files       FileService
+	FineTunes   FineTuneService
+	Moderations ModerationService
 }
 
 // V 设置版本,返回一个新的Client实例，不会修改原有实例
@@ -192,14 +214,26 @@ func (c *Client) Close() error {
 	return nil
 }
 
-func (c *Client) Stream(ctx context.Context, relPath string, body any) (EventSource, error) {
+func (c *Client) GetByStream(ctx context.Context, relPath string, params any) (EventSource, error) {
+	return c.Stream(ctx, http.MethodGet, relPath, nil, params, nil)
+}
 
-	headers := make(map[string]string, 3)
+func (c *Client) PostByStream(ctx context.Context, relPath string, body any) (EventSource, error) {
+	return c.Stream(ctx, http.MethodPost, relPath, nil, nil, body)
+}
+
+// Stream 为请求提供流式处理
+func (c *Client) Stream(ctx context.Context, method, relPath string, headers map[string]string, params, body any) (EventSource, error) {
+
+	if headers == nil {
+		headers = make(map[string]string, 3)
+	}
+
 	headers["Content-Type"] = "application/json"
 	headers["Accept"] = "text/event-stream"
 	headers["Authorization"] = "Bearer " + c.apiKey
 
-	req, err := c.NewRequest(ctx, "POST", relPath, headers, nil, body)
+	req, err := c.NewRequest(ctx, method, relPath, headers, params, body)
 
 	if err != nil {
 		return nil, err
@@ -273,11 +307,15 @@ type Event struct {
 }
 
 func (c *Client) Post(ctx context.Context, relPath string, body, resp any) error {
-	return c.Do(ctx, "POST", relPath, nil, nil, body, resp)
+	return c.Do(ctx, http.MethodPost, relPath, nil, nil, body, resp)
 }
 
 func (c *Client) Get(ctx context.Context, relPath string, params, resp any) error {
-	return c.Do(ctx, "GET", relPath, nil, params, nil, resp)
+	return c.Do(ctx, http.MethodGet, relPath, nil, params, nil, resp)
+}
+
+func (c *Client) Delete(ctx context.Context, relPath string, params, resp any) error {
+	return c.Do(ctx, http.MethodDelete, relPath, nil, params, nil, resp)
 }
 
 func (c *Client) Do(ctx context.Context, method, relPath string, headers map[string]string, params, body, v any) error {
@@ -309,6 +347,34 @@ func (c *Client) Do(ctx context.Context, method, relPath string, headers map[str
 	}
 
 	return err
+}
+
+// GetBytes 获取字节流, 也可以考虑合并到Do中
+// 但是由于api中大部分都是json, 所以这里单独提取出来
+func (c *Client) GetBytes(ctx context.Context, method, relPath string, headers map[string]string, params, body any) ([]byte, error) {
+
+	if headers == nil {
+		headers = make(map[string]string, 3)
+	}
+
+	headers["Content-Type"] = "application/json"
+	headers["Authorization"] = "Bearer " + c.apiKey
+
+	req, err := c.NewRequest(ctx, method, relPath, headers, params, body)
+
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.do(ctx, req, false, false)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	return ioutil.ReadAll(resp.Body)
 }
 
 func (c *Client) do(ctx context.Context, r *http.Request, skipReqBody, skipRespBody bool) (*http.Response, error) {
@@ -439,212 +505,4 @@ func (c *Client) logBody(body *io.ReadCloser, format string) {
 		c.logger.V(1).Info(fmt.Sprintf(format, string(b)))
 	}
 	*body = ioutil.NopCloser(bytes.NewBuffer(b))
-}
-
-func (c *Client) Upload(ctx context.Context, relPath string, files []*FormFile, v any, fields ...*FormField) error {
-
-	rel, err := url.Parse(relPath)
-	if err != nil {
-		return err
-	}
-
-	u := c.baseURL.ResolveReference(rel)
-
-	form := &bytes.Buffer{}
-
-	builder := c.formBuilder(form)
-
-	if files != nil && len(files) > 0 {
-		for _, file := range files {
-			err := builder.CreateFormFile(file.fieldName, file.filename)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	if fields != nil && len(fields) > 0 {
-		for _, field := range fields {
-			err := builder.CreateFormField(field.fieldName, field.fieldValue)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	err = builder.Close()
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", u.String(), form)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", builder.FormDataContentType())
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.do(ctx, req, true, false)
-
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-
-	if v != nil {
-		err = json.NewDecoder(resp.Body).Decode(&v)
-	}
-
-	return nil
-}
-
-type FormBuilder interface {
-	CreateFormFile(name string, filename string) error
-	CreateFormField(name string, value string) error
-	FormDataContentType() string
-	io.Closer
-}
-
-func NewMultiPartFormBuilder(w io.Writer) FormBuilder {
-	writer := multipart.NewWriter(w)
-	return &multipartFormBuilder{
-		w: writer,
-	}
-}
-
-type multipartFormBuilder struct {
-	w *multipart.Writer
-}
-
-func (m multipartFormBuilder) CreateFormFile(name string, filename string) error {
-	f, err := os.Open(filename)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	formFile, err := m.w.CreateFormFile(name, filepath.Base(filename))
-	if err != nil {
-		return err
-	}
-
-	_, err = io.Copy(formFile, f)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (m multipartFormBuilder) CreateFormField(name string, value string) error {
-	return m.w.WriteField(name, value)
-}
-
-func (m multipartFormBuilder) FormDataContentType() string {
-	return m.w.FormDataContentType()
-}
-
-func (m multipartFormBuilder) Close() error {
-	return m.w.Close()
-}
-
-// MultipartRequestBuilder is a builder for multipart/form-data requests.
-// 这里抽象没有做好，后期考虑重构
-/*type MultipartRequestBuilder struct {
-	baseUrl *url.URL
-	relPath string
-	Files   []*FormFile
-	Fields  []*FormField
-}
-
-func (m MultipartRequestBuilder) Build(ctx context.Context) (*http.Request, error) {
-	rel, err := url.Parse(m.relPath)
-	if err != nil {
-		return nil, err
-	}
-
-	u := m.baseUrl.ResolveReference(rel)
-
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-
-	if files := m.Files; files != nil && len(files) > 0 {
-		for _, file := range files {
-			f, err := os.Open(file.filename)
-			if err != nil {
-				return nil, err
-			}
-
-			formFile, err := writer.CreateFormFile(file.fieldName, filepath.Base(file.filename))
-			if err != nil {
-				_ = f.Close()
-				return nil, err
-			}
-
-			_, err = io.Copy(formFile, f)
-			if err != nil {
-				_ = f.Close()
-				return nil, err
-			}
-
-			err = f.Close()
-
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	if fields := m.Fields; fields != nil && len(fields) > 0 {
-		for _, field := range fields {
-			formField, err := writer.CreateFormField(field.fieldName)
-			if err != nil {
-				return nil, err
-			}
-			// todo 是否需要将value定义为io.Reader？
-			_, err = formField.Write([]byte(field.fieldValue))
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	err = writer.Close()
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", u.String(), body)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	return req, nil
-}*/
-
-type FormFile struct {
-	fieldName string
-	filename  string
-}
-
-func NewFormFile(fieldName, filename string) *FormFile {
-	return &FormFile{
-		fieldName: fieldName,
-		filename:  filename,
-	}
-}
-
-type FormField struct {
-	fieldName  string
-	fieldValue string
-}
-
-func NewFormField(fieldName, fieldValue string) *FormField {
-	return &FormField{
-		fieldName:  fieldName,
-		fieldValue: fieldValue,
-	}
 }

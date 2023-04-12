@@ -22,7 +22,7 @@ func TestCompletionServiceOp_Create(t *testing.T) {
 		err = json.Unmarshal(all, &req)
 		require.NoError(t, err)
 
-		mockData := loadTestdata("completion_create.json")
+		mockData := loadTestdata("completion_create_response.json")
 
 		if !req.Stream {
 			// 模拟网络延迟
@@ -72,7 +72,7 @@ func TestCompletionServiceOp_Create(t *testing.T) {
 			}(),
 			wantRes: func() *CompletionCreateResponse {
 				var wantRes CompletionCreateResponse
-				loadMockData("completion_create.json", &wantRes)
+				loadMockData("completion_create_response.json", &wantRes)
 				return &wantRes
 			}(),
 			wantResCount: 1,
@@ -91,7 +91,7 @@ func TestCompletionServiceOp_Create(t *testing.T) {
 			}(),
 			wantRes: func() *CompletionCreateResponse {
 				var wantRes CompletionCreateResponse
-				loadMockData("completion_create.json", &wantRes)
+				loadMockData("completion_create_response.json", &wantRes)
 				return &wantRes
 			}(),
 			wantErr:      context.DeadlineExceeded,
@@ -107,7 +107,7 @@ func TestCompletionServiceOp_Create(t *testing.T) {
 			}(),
 			wantRes: func() *CompletionCreateResponse {
 				var wantRes CompletionCreateResponse
-				loadMockData("completion_create.json", &wantRes)
+				loadMockData("completion_create_response.json", &wantRes)
 				return &wantRes
 			}(),
 			wantResCount: 5,
@@ -126,7 +126,7 @@ func TestCompletionServiceOp_Create(t *testing.T) {
 			}(),
 			wantRes: func() *CompletionCreateResponse {
 				var wantRes CompletionCreateResponse
-				loadMockData("chat_completion_create.json", &wantRes)
+				loadMockData("chat_completion_create_response.json", &wantRes)
 				return &wantRes
 			}(),
 			wantErr: context.DeadlineExceeded,
