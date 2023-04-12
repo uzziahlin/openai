@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-func TestEditServiceOp_Create(t *testing.T) {
-	server := newMockServer(newMockHandler(t, "POST", "edit_create_response.json"))
+func TestEmbeddingServiceOp_Create(t *testing.T) {
+	server := newMockServer(newMockHandler(t, "POST", "embedding_create_response.json"))
 	client := newMockClient(server.URL)
 	defer server.Close()
 
@@ -19,44 +19,40 @@ func TestEditServiceOp_Create(t *testing.T) {
 		}
 	}()
 
-	mockReq := &EditCreateRequest{
-		Model:       "text-davinci-edit-001",
-		Input:       "What day of the wek is it?",
-		Instruction: "Fix the spelling mistakes",
+	mockReq := &EmbeddingCreateRequest{
+		Model: "text-embedding-ada-002",
+		Input: []string{"The food was delicious and the waiter..."},
 	}
 
 	testCase := []struct {
 		name    string
 		ctx     context.Context
-		req     *EditCreateRequest
-		wantRes *EditCreateResponse
+		wantRes *EmbeddingCreateResponse
 		wantErr error
 	}{
 		{
-			name: "test edit create success",
+			name: "test embedding create success",
 			ctx:  context.TODO(),
-			req:  mockReq,
-			wantRes: func() *EditCreateResponse {
-				var wantRes EditCreateResponse
-				loadMockData("edit_create_response.json", &wantRes)
+			wantRes: func() *EmbeddingCreateResponse {
+				var wantRes EmbeddingCreateResponse
+				loadMockData("embedding_create_response.json", &wantRes)
 				return &wantRes
 			}(),
 		},
 		{
-			name: "test edit create timeout",
+			name: "test embedding create timeout",
 			ctx: func() context.Context {
 				ctx, cancel := context.WithTimeout(context.Background(), 2)
 				cancels = append(cancels, cancel)
 				return ctx
 			}(),
-			req:     mockReq,
 			wantErr: context.DeadlineExceeded,
 		},
 	}
 
 	for _, tc := range testCase {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := client.Edits.Create(tc.ctx, tc.req)
+			res, err := client.Embeddings.Create(tc.ctx, mockReq)
 			b := assert.ErrorIs(t, err, tc.wantErr)
 			if !b {
 				t.Fatalf("wantErr: %v, gotErr: %v", tc.wantErr, err)

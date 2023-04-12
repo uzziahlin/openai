@@ -1,13 +1,25 @@
 package openai
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"net/http"
+)
+
+const (
+	FilesListPath           = "/files"
+	FileUploadPath          = "/files"
+	FileDeletePath          = "/files/%s"
+	FileRetrievePath        = "/files/%s"
+	FileContentRetrievePath = "/files/%s/content"
+)
 
 type FileService interface {
 	List(ctx context.Context) (*FileListResponse, error)
 	Upload(ctx context.Context, req *FileUploadRequest) (*File, error)
 	Delete(ctx context.Context, fileId string) (*FileDeleteResponse, error)
 	Retrieve(ctx context.Context, fileId string) (*File, error)
-	RetrieveContent(ctx context.Context, fileId string) (string, error)
+	RetrieveContent(ctx context.Context, fileId string) ([]byte, error)
 }
 
 type FileListResponse struct {
@@ -17,6 +29,24 @@ type FileListResponse struct {
 type FileUploadRequest struct {
 	File    string `json:"file"`
 	Purpose string `json:"purpose"`
+}
+
+func (f FileUploadRequest) getFormFiles() []*FormFile {
+	return []*FormFile{
+		{
+			fieldName: "file",
+			filename:  f.File,
+		},
+	}
+}
+
+func (f FileUploadRequest) getFormFields() []*FormField {
+	return []*FormField{
+		{
+			fieldName:  "purpose",
+			fieldValue: f.Purpose,
+		},
+	}
 }
 
 type FileDeleteResponse struct {
@@ -39,26 +69,29 @@ type FileServiceOp struct {
 }
 
 func (f FileServiceOp) List(ctx context.Context) (*FileListResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp FileListResponse
+	err := f.client.Get(ctx, FilesListPath, nil, &resp)
+	return &resp, err
 }
 
 func (f FileServiceOp) Upload(ctx context.Context, req *FileUploadRequest) (*File, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp File
+	err := f.client.Upload(ctx, FileUploadPath, req.getFormFiles(), &resp, req.getFormFields()...)
+	return &resp, err
 }
 
 func (f FileServiceOp) Delete(ctx context.Context, fileId string) (*FileDeleteResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp FileDeleteResponse
+	err := f.client.Delete(ctx, fmt.Sprintf(FileDeletePath, fileId), nil, &resp)
+	return &resp, err
 }
 
 func (f FileServiceOp) Retrieve(ctx context.Context, fileId string) (*File, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp File
+	err := f.client.Get(ctx, fmt.Sprintf(FileRetrievePath, fileId), nil, &resp)
+	return &resp, err
 }
 
-func (f FileServiceOp) RetrieveContent(ctx context.Context, fileId string) (string, error) {
-	//TODO implement me
-	panic("implement me")
+func (f FileServiceOp) RetrieveContent(ctx context.Context, fileId string) ([]byte, error) {
+	return f.client.GetBytes(ctx, http.MethodGet, fmt.Sprintf(FileContentRetrievePath, fileId), nil, nil, nil)
 }

@@ -2,6 +2,10 @@ package openai
 
 import "context"
 
+const (
+	EmbeddingCreatePath = "/embeddings"
+)
+
 type EmbeddingService interface {
 	Create(ctx context.Context, req *EmbeddingCreateRequest) (*EmbeddingCreateResponse, error)
 }
@@ -35,6 +39,7 @@ type EmbeddingServiceOp struct {
 }
 
 func (e EmbeddingServiceOp) Create(ctx context.Context, req *EmbeddingCreateRequest) (*EmbeddingCreateResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	var resp EmbeddingCreateResponse
+	err := e.client.Post(ctx, EmbeddingCreatePath, req, &resp)
+	return &resp, err
 }

@@ -24,7 +24,7 @@ func TestChatServiceOp_Create(t *testing.T) {
 		err = json.Unmarshal(all, &req)
 		require.NoError(t, err)
 
-		mockData := loadTestdata("chat_completion_create.json")
+		mockData := loadTestdata("chat_completion_create_response.json")
 
 		if !req.Stream {
 			// 模拟网络延迟
@@ -74,7 +74,7 @@ func TestChatServiceOp_Create(t *testing.T) {
 			}(),
 			wantRes: func() *ChatCreateResponse {
 				var wantRes ChatCreateResponse
-				loadMockData("chat_completion_create.json", &wantRes)
+				loadMockData("chat_completion_create_response.json", &wantRes)
 				return &wantRes
 			}(),
 			wantResCount: 1,
@@ -93,7 +93,7 @@ func TestChatServiceOp_Create(t *testing.T) {
 			}(),
 			wantRes: func() *ChatCreateResponse {
 				var wantRes ChatCreateResponse
-				loadMockData("chat_completion_create.json", &wantRes)
+				loadMockData("chat_completion_create_response.json", &wantRes)
 				return &wantRes
 			}(),
 			wantErr:      context.DeadlineExceeded,
@@ -109,7 +109,7 @@ func TestChatServiceOp_Create(t *testing.T) {
 			}(),
 			wantRes: func() *ChatCreateResponse {
 				var wantRes ChatCreateResponse
-				loadMockData("chat_completion_create.json", &wantRes)
+				loadMockData("chat_completion_create_response.json", &wantRes)
 				return &wantRes
 			}(),
 			wantResCount: 5,
@@ -128,7 +128,7 @@ func TestChatServiceOp_Create(t *testing.T) {
 			}(),
 			wantRes: func() *ChatCreateResponse {
 				var wantRes ChatCreateResponse
-				loadMockData("chat_completion_create.json", &wantRes)
+				loadMockData("chat_completion_create_response.json", &wantRes)
 				return &wantRes
 			}(),
 			wantErr: context.DeadlineExceeded,
@@ -193,7 +193,7 @@ func mockOutputWithStream(ctx context.Context, w http.ResponseWriter, data []byt
 	_, _ = w.Write([]byte("[DONE]"))
 }
 
-func TestSend(t *testing.T) {
+func testSend(t *testing.T) {
 	client, err := New(App{
 		ApiUrl: "https://api.openai.com",
 		ApiKey: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
