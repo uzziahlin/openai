@@ -473,10 +473,8 @@ func (c *Client) NewRequest(ctx context.Context, method string, relPath string, 
 		return nil, err
 	}
 
-	if headers != nil {
-		for k, v := range headers {
-			req.Header.Set(k, v)
-		}
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
 
 	return req, nil
