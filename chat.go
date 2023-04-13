@@ -75,7 +75,6 @@ type ChatServiceOp struct {
 // 如果是 stream 模式，返回的 channel 会在 ctx.Done() 或者 stream 关闭后关闭
 // 这里其实也可以考虑拆分为两个方法，一个是 Create，一个是 CreateStream，但是这样会导致 API 不一致，所以这里就不拆分了
 func (c ChatServiceOp) Create(ctx context.Context, req *ChatCreateRequest) (chan *ChatCreateResponse, error) {
-	res := make(chan *ChatCreateResponse)
 
 	// 如果不是 stream 模式，返回一个 channel，并将结果通过 channel 返回
 	if !req.Stream {
@@ -84,13 +83,9 @@ func (c ChatServiceOp) Create(ctx context.Context, req *ChatCreateRequest) (chan
 		if err != nil {
 			return nil, err
 		}
-		go func() {
-			select {
-			case <-ctx.Done():
-			case res <- &resp:
-			}
-			close(res)
-		}()
+		res := make(chan *ChatCreateResponse, 1)
+		res <- &resp
+		close(res)
 		return res, nil
 	}
 
@@ -100,6 +95,8 @@ func (c ChatServiceOp) Create(ctx context.Context, req *ChatCreateRequest) (chan
 	if err != nil {
 		return nil, err
 	}
+
+	res := make(chan *ChatCreateResponse)
 
 	go func() {
 		defer close(res)
