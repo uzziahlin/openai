@@ -43,7 +43,7 @@ func (c *Client) Upload(ctx context.Context, relPath string, files []*FormFile, 
 
 	builder := c.formBuilder(form)
 
-	if files != nil && len(files) > 0 {
+	if len(files) > 0 {
 		for _, file := range files {
 			err := builder.CreateFormFile(file.fieldName, file.filename)
 			if err != nil {
@@ -52,7 +52,7 @@ func (c *Client) Upload(ctx context.Context, relPath string, files []*FormFile, 
 		}
 	}
 
-	if fields != nil && len(fields) > 0 {
+	if len(fields) > 0 {
 		for _, field := range fields {
 			err := builder.CreateFormField(field.fieldName, field.fieldValue)
 			if err != nil {
@@ -87,7 +87,7 @@ func (c *Client) Upload(ctx context.Context, relPath string, files []*FormFile, 
 		err = json.NewDecoder(resp.Body).Decode(&v)
 	}
 
-	return nil
+	return err
 }
 
 // FormBuilder is a builder for multipart/form-data requests.

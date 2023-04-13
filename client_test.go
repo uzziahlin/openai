@@ -55,7 +55,6 @@ func newMockHandler(t *testing.T, method string, filename string) http.HandlerFu
 		// 模拟网络延迟
 		time.Sleep(3 * time.Second)
 		_, _ = w.Write(mockData)
-		return
 	}
 }
 
