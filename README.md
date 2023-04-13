@@ -1,5 +1,5 @@
 # OpenAI Go SDK
-This is This is an unofficial Go SDK for interacting with the OpenAI API, which allows you to leverage the power of OpenAI's models like GPT-4 within your Go applications. This SDK aims to simplify the process of integrating OpenAI's API with your projects by providing an easy-to-use interface.
+This is an unofficial Go SDK for interacting with the OpenAI API, which allows you to leverage the power of OpenAI's models like GPT-4 within your Go applications. This SDK aims to simplify the process of integrating OpenAI's API with your projects by providing an easy-to-use interface.
 
 **Note**: This SDK is not officially supported by OpenAI and comes with no warranty.
 
