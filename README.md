@@ -8,7 +8,7 @@ This is an unofficial Go SDK for interacting with the OpenAI API, which allows y
 - [Supported Services](#supported-services)
 - [Installation](#installation)
 - [Usage](#usage)
-- License
+- [License](#license)
 
 ## Features
 - Easy integration with the OpenAI API
