@@ -357,7 +357,7 @@ func TestFileServiceOp_RetrieveContent(t *testing.T) {
 
 				require.Equal(t, "GET", r.Method)
 
-				w.Write(loadTestdata("mock_file_content.json"))
+				_, _ = w.Write(loadTestdata("mock_file_content.json"))
 			},
 		},
 		{
@@ -371,7 +371,7 @@ func TestFileServiceOp_RetrieveContent(t *testing.T) {
 
 				require.Equal(t, "GET", r.Method)
 
-				w.Write(loadTestdata("mock_file_content.txt"))
+				_, _ = w.Write(loadTestdata("mock_file_content.txt"))
 			},
 		},
 		{
