@@ -158,12 +158,13 @@ func (f FineTuneServiceOp) ListEvents(ctx context.Context, id string, stream ...
 		return ch, nil
 	}
 
-	ch := make(chan *EventListResponse)
-
 	es, err := f.client.GetByStream(ctx, fmt.Sprintf(EventsListPath, id), s)
+
 	if err != nil {
 		return nil, err
 	}
+
+	ch := make(chan *EventListResponse)
 
 	go func() {
 		defer close(ch)
