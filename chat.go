@@ -20,7 +20,14 @@ import (
 )
 
 const (
+	// ChatCreatePath 聊天创建路径
 	ChatCreatePath = "/chat/completions"
+
+	FunctionCallNone = FunctionCallString("none")
+	FunctionCallAuto = FunctionCallString("auto")
+
+	FinishReasonFunctionCall = "function_call"
+	FinishReasonStop         = "stop"
 )
 
 type ChatService interface {
@@ -30,6 +37,8 @@ type ChatService interface {
 type ChatCreateRequest struct {
 	Model            string           `json:"model"`
 	Messages         []*Message       `json:"messages,omitempty"`
+	Functions        []*Function      `json:"functions,omitempty"`
+	FunctionCall     IFunctionCall    `json:"function_call,omitempty"`
 	Temperature      float64          `json:"temperature,omitempty"`
 	TopP             float64          `json:"top_p,omitempty"`
 	N                int64            `json:"n,omitempty"`
@@ -42,9 +51,50 @@ type ChatCreateRequest struct {
 	User             string           `json:"user,omitempty"`
 }
 
+type IFunctionCall interface {
+	Call()
+}
+
+type Function struct {
+	Name        string    `json:"name"`
+	Description string    `json:"description,omitempty"`
+	Parameters  Parameter `json:"parameters,omitempty"`
+}
+
+type Parameter struct {
+	Type       string               `json:"type"` // object only
+	Properties map[string]*Property `json:"properties,omitempty"`
+	Required   []string             `json:"required,omitempty"`
+}
+
+type Property struct {
+	Type        string               `json:"type"`
+	Description string               `json:"description,omitempty"`
+	Properties  map[string]*Property `json:"properties,omitempty"` // if type is object, this field will be set
+}
+
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role         string       `json:"role"` // user,assistant,system,function
+	Content      string       `json:"content,omitempty"`
+	Name         string       `json:"name,omitempty"`
+	FunctionCall FunctionCall `json:"function_call,omitempty"`
+}
+
+type FunctionCall struct {
+	Name      string `json:"name"`
+	Arguments []byte `json:"arguments,omitempty"`
+}
+
+func (f FunctionCall) Call() {
+	//TODO implement me
+	panic("implement me")
+}
+
+type FunctionCallString string
+
+func (f FunctionCallString) Call() {
+	//TODO implement me
+	panic("implement me")
 }
 
 type ChatCreateResponse struct {
