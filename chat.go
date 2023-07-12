@@ -56,9 +56,9 @@ type IFunctionCall interface {
 }
 
 type Function struct {
-	Name        string    `json:"name"`
-	Description string    `json:"description,omitempty"`
-	Parameters  Parameter `json:"parameters,omitempty"`
+	Name        string     `json:"name"`
+	Description string     `json:"description,omitempty"`
+	Parameters  *Parameter `json:"parameters,omitempty"`
 }
 
 type Parameter struct {
@@ -82,7 +82,7 @@ type Message struct {
 
 type FunctionCall struct {
 	Name      string `json:"name"`
-	Arguments []byte `json:"arguments,omitempty"`
+	Arguments string `json:"arguments,omitempty"`
 }
 
 func (f FunctionCall) Call() {

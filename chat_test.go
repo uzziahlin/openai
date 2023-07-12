@@ -38,7 +38,13 @@ func TestChatServiceOp_Create(t *testing.T) {
 		err = json.Unmarshal(all, &req)
 		require.NoError(t, err)
 
-		mockData := loadTestdata("chat_completion_create_response.json")
+		var mockData []byte
+
+		if req.Functions != nil {
+			mockData = loadTestdata("chat_completion_for_function_call.json")
+		} else {
+			mockData = loadTestdata("chat_completion_create_response.json")
+		}
 
 		if !req.Stream {
 			// 模拟网络延迟
@@ -146,6 +152,37 @@ func TestChatServiceOp_Create(t *testing.T) {
 				return &wantRes
 			}(),
 			wantErr: context.DeadlineExceeded,
+		},
+		{
+			name: "test chat for function call",
+			ctx:  context.TODO(),
+			req: func() *ChatCreateRequest {
+				r := mockReq
+				r.Stream = false
+				r.Functions = []*Function{
+					{
+						Name:        "echo",
+						Description: "test desc",
+						Parameters: &Parameter{
+							Type: "object",
+							Properties: map[string]*Property{
+								"prompt": {
+									Type:        "string",
+									Description: "prompt description",
+								},
+							},
+							Required: []string{"prompt"},
+						},
+					},
+				}
+				return &r
+			}(),
+			wantRes: func() *ChatCreateResponse {
+				var wantRes ChatCreateResponse
+				loadMockData("chat_completion_for_function_call.json", &wantRes)
+				return &wantRes
+			}(),
+			wantResCount: 1,
 		},
 	}
 
